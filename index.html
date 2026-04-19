@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VPN Status</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Unbounded:wght@300;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f2f8;
+    --surface: #ffffff;
+    --surface2: #f7f8fc;
+    --border: #e2e6f0;
+    --border2: #d0d6e8;
+    --accent: #00b86b;
+    --accent2: #2563eb;
+    --warn: #f97316;
+    --danger: #ef4444;
+    --text: #1a1d2e;
+    --muted: #8891b0;
+    --shadow: 0 2px 16px rgba(30,40,80,0.08);
+    --shadow-hover: 0 4px 24px rgba(30,40,80,0.13);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image: 
+      radial-gradient(ellipse at 10% 10%, rgba(0,184,107,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 90%, rgba(37,99,235,0.06) 0%, transparent 50%);
+  }
+  header { text-align: center; margin-bottom: 50px; }
+  .logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: clamp(26px, 5vw, 44px);
+    font-weight: 900;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle { color: var(--muted); font-size: 10px; letter-spacing: 4px; text-transform: uppercase; margin-top: 8px; }
+  .last-update { color: var(--muted); font-size: 10px; margin-top: 12px; }
+  .last-update span { color: var(--accent); }
+  .grid { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.3s, border-color 0.3s;
+  }
+  .card:hover { box-shadow: var(--shadow-hover); border-color: var(--border2); }
+  .card-header {
+    padding: 22px 26px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .card-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .icon-vpn { background: rgba(0,184,107,0.1); border: 1px solid rgba(0,184,107,0.2); }
+  .icon-eu { background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.2); }
+  .icon-tg { background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.2); }
+  .card-title-group { flex: 1; }
+  .card-title { font-family: 'Unbounded', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); margin-bottom: 4px; }
+  .card-desc { color: var(--muted); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; }
+  .card-right { display: flex; align-items: center; gap: 16px; }
+  .nodes-summary { display: flex; gap: 10px; }
+  .node-dot { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-online { background: var(--accent); box-shadow: 0 0 0 2px rgba(0,184,107,0.2); animation: pulse 2s infinite; }
+  .dot-offline { background: var(--danger); box-shadow: 0 0 0 2px rgba(239,68,68,0.2); }
+  .dot-pending { background: var(--muted); }
+  .dot-checking { background: var(--warn); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .expand-btn {
+    color: var(--muted); font-size: 16px;
+    transition: transform 0.3s, color 0.3s;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .expand-btn.open { transform: rotate(180deg); color: var(--accent); border-color: rgba(0,184,107,0.3); background: rgba(0,184,107,0.05); }
+  .card-body { display: none; border-top: 1px solid var(--border); }
+  .card-body.open { display: block; animation: slideDown 0.25s ease; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .nodes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1px; background: var(--border); }
+  .node { background: var(--surface2); padding: 22px 26px; }
+  .node-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .node-name { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text); }
+  .status-badge { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; font-weight: 700; }
+  .badge-online { background: rgba(0,184,107,0.1); color: var(--accent); border: 1px solid rgba(0,184,107,0.25); }
+  .badge-offline { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+  .badge-checking { background: rgba(136,145,176,0.1); color: var(--muted); border: 1px solid var(--border); }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .metric-label { color: var(--muted); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+  .metric-value { font-size: 22px; font-weight: 700; font-family: 'Unbounded', sans-serif; letter-spacing: -1px; line-height: 1; }
+  .metric-unit { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .ping-good { color: var(--accent); }
+  .ping-ok { color: #d97706; }
+  .ping-bad { color: var(--danger); }
+  .ping-na { color: var(--muted); }
+  .ip-line { margin-top: 12px; font-size: 10px; color: var(--muted); }
+  .ip-line span { color: var(--accent2); font-weight: 600; }
+  .protocol-tag { margin-top: 8px; display: inline-flex; gap: 6px; }
+  .tag { font-size: 8px; letter-spacing: 1px; padding: 2px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; }
+  .tag-vless { background: rgba(37,99,235,0.08); color: var(--accent2); border: 1px solid rgba(37,99,235,0.2); }
+  .tag-reality { background: rgba(0,184,107,0.08); color: var(--accent); border: 1px solid rgba(0,184,107,0.2); }
+  .tag-tcp { background: rgba(136,145,176,0.1); color: var(--muted); border: 1px solid var(--border); }
+  .coming-soon { padding: 48px 28px; text-align: center; background: var(--surface2); }
+  .coming-soon .big { font-size: 36px; display: block; margin-bottom: 12px; opacity: 0.4; }
+  .coming-soon p { color: var(--warn); font-weight: 700; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .coming-soon small { color: var(--muted); font-size: 10px; }
+  .bottom-bar { max-width: 900px; margin: 20px auto 0; display: flex; align-items: center; justify-content: space-between; }
+  .refresh-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px;
+    padding: 9px 20px; border-radius: 8px; cursor: pointer; transition: all 0.2s;
+    text-transform: uppercase; box-shadow: var(--shadow);
+  }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,184,107,0.04); }
+  .footer { color: var(--muted); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">NET STATUS</div>
+  <div class="subtitle">Infrastructure Monitor</div>
+  <div class="last-update">Updated: <span id="update-time">—</span></div>
+</header>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-header" onclick="toggleCard('vpn')">
+      <div class="card-icon icon-vpn">🛡️</div>
+      <div class="card-title-group">
+        <div class="card-title">VPN — Split Routing</div>
+        <div class="card-desc">RU Node + EU Node · Paired · VLESS · Reality</div>
+      </div>
+      <div class="card-right">
+        <div class="nodes-summary">
+          <div class="node-dot"><div class="dot dot-checking" id="dot-ru"></div><span>RU</span></div>
+          <div class="node-dot"><div class="dot dot-checking" id="dot-eu"></div><span>EU</span></div>
+        </div>
+        <div class="expand-btn open" id="btn-vpn">▾</div>
+      </div>
+    </div>
+    <div class="card-body open" id="body-vpn">
+      <div class="nodes-grid">
+        <div class="node">
+          <div class="node-header">
+            <div class="node-name">🇷🇺 RU Node</div>
+            <div class="status-badge badge-checking" id="status-ru">Checking</div>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Ping</div>
+              <div class="metric-value ping-na" id="ping-ru">—</div>
+              <div class="metric-unit">milliseconds</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Port</div>
+              <div class="metric-value" style="font-size:16px;color:var(--accent2)">8443</div>
+              <div class="metric-unit">TCP</div>
+            </div>
+          </div>
+          <div class="ip-line">IP: <span>130.49.128.17</span></div>
+          <div class="protocol-tag">
+            <span class="tag tag-vless">VLESS</span>
+            <span class="tag tag-reality">Reality</span>
+            <span class="tag tag-tcp">TCP</span>
+          </div>
+        </div>
+        <div class="node">
+          <div class="node-header">
+            <div class="node-name">🇮🇪 EU Node</div>
+            <div class="status-badge badge-checking" id="status-eu">Checking</div>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Ping</div>
+              <div class="metric-value ping-na" id="ping-eu">—</div>
+              <div class="metric-unit">milliseconds</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Port</div>
+              <div class="metric-value" style="font-size:16px;color:var(--accent2)">443</div>
+              <div class="metric-unit">TCP</div>
+            </div>
+          </div>
+          <div class="ip-line">IP: <span>78.17.35.71</span></div>
+          <div class="protocol-tag">
+            <span class="tag tag-vless">VLESS</span>
+            <span class="tag tag-reality">Reality</span>
+            <span class="tag tag-tcp">TCP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" onclick="toggleCard('fi')">
+      <div class="card-icon icon-eu">🌐</div>
+      <div class="card-title-group">
+        <div class="card-title">VPN — Finland</div>
+        <div class="card-desc">Standalone EU Server · VLESS · Reality</div>
+      </div>
+      <div class="card-right">
+        <div class="nodes-summary">
+          <div class="node-dot"><div class="dot dot-checking" id="dot-fi"></div><span>FI</span></div>
+        </div>
+        <div class="expand-btn" id="btn-fi">▾</div>
+      </div>
+    </div>
+    <div class="card-body" id="body-fi">
+      <div class="nodes-grid">
+        <div class="node">
+          <div class="node-header">
+            <div class="node-name">🇫🇮 Finland Node</div>
+            <div class="status-badge badge-checking" id="status-fi">Checking</div>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Ping</div>
+              <div class="metric-value ping-na" id="ping-fi">—</div>
+              <div class="metric-unit">milliseconds</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Port</div>
+              <div class="metric-value" style="font-size:16px;color:var(--accent2)" id="fi-port">443</div>
+              <div class="metric-unit">TCP</div>
+            </div>
+          </div>
+          <div class="ip-line">IP: <span id="fi-ip">не указан</span></div>
+          <div class="protocol-tag">
+            <span class="tag tag-vless">VLESS</span>
+            <span class="tag tag-reality">Reality</span>
+            <span class="tag tag-tcp">TCP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" onclick="toggleCard('tg')">
+      <div class="card-icon icon-tg">✈️</div>
+      <div class="card-title-group">
+        <div class="card-title">Telegram MTProto</div>
+        <div class="card-desc">Proxy · In Development</div>
+      </div>
+      <div class="card-right">
+        <div class="nodes-summary">
+          <div class="node-dot"><div class="dot dot-pending"></div><span>TG</span></div>
+        </div>
+        <div class="expand-btn" id="btn-tg">▾</div>
+      </div>
+    </div>
+    <div class="card-body" id="body-tg">
+      <div class="coming-soon">
+        <span class="big">🚧</span>
+        <p>Coming Soon</p>
+        <small>MTProto proxy · в разработке</small>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="bottom-bar">
+  <button class="refresh-btn" onclick="checkAll()">↻ Обновить</button>
+  <div class="footer">Auto-refresh · 60s</div>
+</div>
+
+<script>
+const FI_IP = '138.124.88.237'; // Finland server
+const FI_PORT = 443;
+
+function toggleCard(id) {
+  document.getElementById('body-' + id).classList.toggle('open');
+  document.getElementById('btn-' + id).classList.toggle('open');
+}
+
+function updateTime() {
+  document.getElementById('update-time').textContent = new Date().toLocaleTimeString('ru-RU');
+}
+
+async function pingServer(ip, port) {
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    await fetch(`https://${ip}:${port}`, { mode: 'no-cors', signal: controller.signal });
+    clearTimeout(timeout);
+    return Date.now() - start;
+  } catch (e) {
+    const elapsed = Date.now() - start;
+    if (e.name !== 'AbortError' && elapsed < 4900) return elapsed;
+    return null;
+  }
+}
+
+function setChecking(id) {
+  const s = document.getElementById('status-' + id);
+  const d = document.getElementById('dot-' + id);
+  if (s) { s.textContent = 'Checking'; s.className = 'status-badge badge-checking'; }
+  if (d) d.className = 'dot dot-checking';
+}
+
+function setPingUI(id, ping) {
+  const pingEl = document.getElementById('ping-' + id);
+  const statusEl = document.getElementById('status-' + id);
+  const dotEl = document.getElementById('dot-' + id);
+  if (ping === null) {
+    pingEl.textContent = '—';
+    pingEl.className = 'metric-value ping-na';
+    statusEl.textContent = 'Offline';
+    statusEl.className = 'status-badge badge-offline';
+    if (dotEl) dotEl.className = 'dot dot-offline';
+  } else {
+    pingEl.textContent = ping;
+    statusEl.textContent = 'Online';
+    statusEl.className = 'status-badge badge-online';
+    if (dotEl) dotEl.className = 'dot dot-online';
+    pingEl.className = ping < 100 ? 'metric-value ping-good' : ping < 300 ? 'metric-value ping-ok' : 'metric-value ping-bad';
+  }
+}
+
+async function checkAll() {
+  updateTime();
+  setChecking('ru');
+  setPingUI('ru', await pingServer('130.49.128.17', 8443));
+  setChecking('eu');
+  setPingUI('eu', await pingServer('78.17.35.71', 443));
+  if (FI_IP) {
+    document.getElementById('fi-ip').textContent = FI_IP;
+    setChecking('fi');
+    setPingUI('fi', await pingServer(FI_IP, FI_PORT));
+  } else {
+    document.getElementById('fi-ip').textContent = 'не указан';
+    document.getElementById('status-fi').textContent = 'N/A';
+    document.getElementById('dot-fi').className = 'dot dot-pending';
+  }
+}
+
+checkAll();
+setInterval(checkAll, 60000);
+</script>
+</body>
+</html>
